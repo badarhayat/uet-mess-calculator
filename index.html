@@ -1,0 +1,500 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ingredient Calculator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div id="root"></div>
+  <script type="text/babel" data-type="module" data-presets="react">
+    const { useState } = React;
+
+    // Data structure for dishes with rent and gas cylinder excluded
+    const dishes = {
+      "chicken karahi": [
+        { name: "atta", quantityPerPerson: 0.3659, unit: "kg" },
+        { name: "karahi masala", quantityPerPerson: 0.0122, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0732, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0244, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.0244, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0244, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0122, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.1220, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0007, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0061, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0024, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0012, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0061, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0244, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0030, unit: "kg" },
+        { name: "dara mirch", quantityPerPerson: 0.0011, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1829, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.017, unit: "units" }
+      ],
+      "rost": [
+        { name: "aaloo", quantityPerPerson: 0.1364, unit: "kg" },
+        { name: "atta", quantityPerPerson: 0.3364, unit: "kg" },
+        { name: "rost masala", quantityPerPerson: 0.0091, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.1514, unit: "kg" },
+        { name: "dahi", quantityPerPerson: 0.0182, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0273, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0091, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0153, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0001, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0000, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0018, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0059, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0045, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0073, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0014, unit: "kg" },
+        { name: "dara mirch", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1818, unit: "units" },
+        { name: "ketchup", quantityPerPerson: 0.0182, unit: "packs" }
+      ],
+      "chicken biryani": [
+        { name: "aaloo", quantityPerPerson: 0.2529, unit: "kg" },
+        { name: "biryani masala", quantityPerPerson: 0.0115, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0862, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0460, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.1092, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "imli", quantityPerPerson: 0.0029, unit: "kg" },
+        { name: "kheeray", quantityPerPerson: 0.0057, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0402, unit: "L" },
+        { name: "pakorian", quantityPerPerson: 0.0029, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0230, unit: "kg" },
+        { name: "podina", quantityPerPerson: 0.0287, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0011, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.2126, unit: "kg" },
+        { name: "saban bartan", quantityPerPerson: 0.0230, unit: "units" },
+        { name: "ichaar", quantityPerPerson: 0.0057, unit: "packs" },
+        { name: "sabat dhania", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0018, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0059, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0057, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0105, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0024, unit: "kg" },
+        { name: "zarda rang", quantityPerPerson: 0.0057, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0006, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.057, unit: "units" },
+        { name: "wood", quantityPerPerson: 0.1264, unit: "units" }
+      ],
+      "daal chawal": [
+        { name: "biryani masala", quantityPerPerson: 0.0182, unit: "packs" },
+        { name: "knor", quantityPerPerson: 0.0364, unit: "packs" },
+        { name: "daal mosir", quantityPerPerson: 0.0182, unit: "kg" },
+        { name: "daal chana", quantityPerPerson: 0.0273, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0008, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0455, unit: "L" },
+        { name: "piyaaz", quantityPerPerson: 0.0182, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0008, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.2273, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0045, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0013, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0071, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1364, unit: "units" },
+        { name: "dara mirch", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "zeera", quantityPerPerson: 0.0009, unit: "kg" }
+      ],
+      "chicken jalfarzi": [
+        { name: "aaloo", quantityPerPerson: 0.0696, unit: "kg" },
+        { name: "atta", quantityPerPerson: 0.3391, unit: "kg" },
+        { name: "biryani masala", quantityPerPerson: 0.0000, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0261, unit: "kg" },
+        { name: "dahi", quantityPerPerson: 0.0087, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0261, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0087, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0261, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0006, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0035, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0043, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0020, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0043, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0009, unit: "kg" },
+        { name: "mater", quantityPerPerson: 0.0435, unit: "kg" },
+        { name: "tamatar", quantityPerPerson: 0.0174, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0018, unit: "kg" },
+        { name: "phool gobi", quantityPerPerson: 0.1304, unit: "kg" },
+        { name: "band gobi", quantityPerPerson: 0.4348, unit: "kg" },
+        { name: "gajar", quantityPerPerson: 0.0870, unit: "kg" },
+        { name: "zeera", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1739, unit: "units" }
+      ],
+      "chicken haleem": [
+        { name: "atta", quantityPerPerson: 0.3879, unit: "kg" },
+        { name: "haleem masala", quantityPerPerson: 0.0086, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0172, unit: "kg" },
+        { name: "dalyia", quantityPerPerson: 0.0011, unit: "kg" },
+        { name: "daal chana", quantityPerPerson: 0.0259, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0345, unit: "packs" },
+        { name: "garm masala", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "soya saas", quantityPerPerson: 0.0086, unit: "packs" },
+        { name: "oil", quantityPerPerson: 0.0172, unit: "L" },
+        { name: "piyaaz", quantityPerPerson: 0.0431, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.0043, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0002, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0043, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0063, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0008, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.172, unit: "units" },
+        { name: "tamatar", quantityPerPerson: 0.0069, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0017, unit: "kg" },
+        { name: "dalya", quantityPerPerson: 0.0011, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.0862, unit: "units" }
+      ],
+      "aaloo qema": [
+        { name: "aaloo", quantityPerPerson: 0.1376, unit: "kg" },
+        { name: "atta", quantityPerPerson: 0.4128, unit: "kg" },
+        { name: "chicken", quantityPerPerson: 0.0367, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0183, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.0092, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0183, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0092, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0413, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0006, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0046, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0009, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "tamatar", quantityPerPerson: 0.0165, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0014, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1193, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0005, unit: "kg" }
+      ],
+      "chinese pulao": [
+        { name: "aaloo", quantityPerPerson: 0.0526, unit: "kg" },
+        { name: "bharyni masala", quantityPerPerson: 0.0105, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0263, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0211, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.0737, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "imli", quantityPerPerson: 0.0053, unit: "kg" },
+        { name: "kheeray", quantityPerPerson: 0.0105, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0316, unit: "L" },
+        { name: "pakorian", quantityPerPerson: 0.0053, unit: "kg" },
+        { name: "pissa dhania", quantityPerPerson: 0.0105, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0263, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.1474, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0042, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "dara mirch", quantityPerPerson: 0.0009, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0042, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0053, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0045, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0016, unit: "kg" },
+        { name: "gajar", quantityPerPerson: 0.1053, unit: "kg" },
+        { name: "phool gobi", quantityPerPerson: 0.1053, unit: "kg" },
+        { name: "band gobi", quantityPerPerson: 0.0526, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1053, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.021, unit: "units" }
+      ],
+      "aaloo pratha dahi": [
+        { name: "aaloo", quantityPerPerson: 0.1818, unit: "kg" },
+        { name: "atta", quantityPerPerson: 0.3788, unit: "kg" },
+        { name: "bharni masala", quantityPerPerson: 0.0152, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.0758, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0303, unit: "L" },
+        { name: "sabat dhania", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0076, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0020, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0091, unit: "kg" },
+        { name: "pissa dhania", quantityPerPerson: 0.0000, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0001, unit: "kg" },
+        { name: "zeera", quantityPerPerson: 0.0003, unit: "kg" }
+      ],
+      "sindhi biyaani": [
+        { name: "biryani masala", quantityPerPerson: 0.0136, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.1020, unit: "kg" },
+        { name: "knor", quantityPerPerson: 0.0544, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.1156, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0027, unit: "kg" },
+        { name: "imli", quantityPerPerson: 0.0034, unit: "kg" },
+        { name: "kheeray", quantityPerPerson: 0.0068, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0408, unit: "L" },
+        { name: "pakorian", quantityPerPerson: 0.0034, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0816, unit: "kg" },
+        { name: "podina", quantityPerPerson: 0.0340, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.2177, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0034, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0028, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0054, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0068, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0136, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0027, unit: "kg" },
+        { name: "dara mirch", quantityPerPerson: 0.0006, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1837, unit: "units" },
+        { name: "ichaar", quantityPerPerson: 0.0034, unit: "packs" },
+        { name: "zeera", quantityPerPerson: 0.0009, unit: "kg" }
+      ],
+      "aloo chicken": [
+        { name: "aaloo", quantityPerPerson: 0.0617, unit: "kg" },
+        { name: "atta", quantityPerPerson: 0.3704, unit: "kg" },
+        { name: "karahi masala", quantityPerPerson: 0.0123, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0494, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0247, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0123, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0556, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0002, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0002, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0062, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0001, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0010, unit: "kg" },
+        { name: "tamatar", quantityPerPerson: 0.0103, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0012, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1235, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.012, unit: "units" },
+        { name: "dara mirch", quantityPerPerson: 0.0002, unit: "kg" }
+      ],
+      "channy anda": [
+        { name: "atta", quantityPerPerson: 0.3684, unit: "kg" },
+        { name: "biryani masala", quantityPerPerson: 0.0000, unit: "packs" },
+        { name: "channay", quantityPerPerson: 0.0395, unit: "kg" },
+        { name: "dahi", quantityPerPerson: 0.0132, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0263, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0132, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0263, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0066, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0007, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0066, unit: "kg" },
+        { name: "tamatar", quantityPerPerson: 0.0066, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0013, unit: "kg" },
+        { name: "egg", quantityPerPerson: 0.7237, unit: "units" },
+        { name: "wood", quantityPerPerson: 0.1316, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0003, unit: "kg" }
+      ],
+      "sabzi plaio": [
+        { name: "aaloo", quantityPerPerson: 0.0510, unit: "kg" },
+        { name: "biryani masala", quantityPerPerson: 0.0102, unit: "packs" },
+        { name: "knor", quantityPerPerson: 0.0408, unit: "packs" },
+        { name: "dahi", quantityPerPerson: 0.0918, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "imli", quantityPerPerson: 0.0051, unit: "kg" },
+        { name: "kheeray", quantityPerPerson: 0.0102, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0306, unit: "L" },
+        { name: "pakorian", quantityPerPerson: 0.0051, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0255, unit: "kg" },
+        { name: "podina", quantityPerPerson: 0.0510, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "rice", quantityPerPerson: 0.1531, unit: "kg" },
+        { name: "saban bartan", quantityPerPerson: 0.0204, unit: "units" },
+        { name: "sabat dhania", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0044, unit: "kg" },
+        { name: "sirka", quantityPerPerson: 0.0051, unit: "L" },
+        { name: "tamatar", quantityPerPerson: 0.0051, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "band gobi", quantityPerPerson: 0.0510, unit: "kg" },
+        { name: "dara mirch", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "zeera", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.015, unit: "units" },
+        { name: "phool gobi", quantityPerPerson: 0.1020, unit: "kg" },
+        { name: "gajar", quantityPerPerson: 0.1020, unit: "kg" },
+        { name: "wood", quantityPerPerson: 0.1531, unit: "units #/per kg" }
+      ],
+      "ichaar chicken": [
+        { name: "atta", quantityPerPerson: 0.2991, unit: "kg" },
+        { name: "karahi masala", quantityPerPerson: 0.0093, unit: "packs" },
+        { name: "chicken", quantityPerPerson: 0.0561, unit: "kg" },
+        { name: "dahi", quantityPerPerson: 0.0093, unit: "kg" },
+        { name: "garm masala", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "oil", quantityPerPerson: 0.0187, unit: "L" },
+        { name: "pissa dhania", quantityPerPerson: 0.0093, unit: "kg" },
+        { name: "piyaaz", quantityPerPerson: 0.0467, unit: "kg" },
+        { name: "red chilli", quantityPerPerson: 0.0005, unit: "kg" },
+        { name: "sabat dhania", quantityPerPerson: 0.0002, unit: "kg" },
+        { name: "sabz dhania", quantityPerPerson: 0.0047, unit: "kg" },
+        { name: "sabz mirch", quantityPerPerson: 0.0004, unit: "kg" },
+        { name: "haldi", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "salt", quantityPerPerson: 0.0007, unit: "kg" },
+        { name: "tamatar", quantityPerPerson: 0.0140, unit: "kg" },
+        { name: "thoom adrak", quantityPerPerson: 0.0009, unit: "kg" },
+        { name: "lemon", quantityPerPerson: 0.010, unit: "units" },
+        { name: "zeera", quantityPerPerson: 0.0003, unit: "kg" },
+        { name: "ichaar", quantityPerPerson: 0.0047, unit: "packs" },
+        { name: "wood", quantityPerPerson: 0.0935, unit: "units" }
+      ]
+    };
+
+    // Main React component
+    function IngredientCalculator() {
+      const [selectedDish, setSelectedDish] = useState(Object.keys(dishes)[0]);
+      const [numPeople, setNumPeople] = useState('');
+      const [ingredients, setIngredients] = useState([]);
+      const [error, setError] = useState('');
+
+      // Calculate ingredients based on input
+      const handleCalculate = () => {
+        setError('');
+        const people = parseInt(numPeople, 10);
+        if (isNaN(people) || people <= 0) {
+          setError('Please enter a valid number of people (greater than 0).');
+          setIngredients([]);
+          return;
+        }
+
+        const selectedIngredients = dishes[selectedDish];
+        const calculatedIngredients = selectedIngredients.map(ingredient => ({
+          name: ingredient.name,
+          quantity: ingredient.unit === 'packs' || ingredient.unit === 'units' || ingredient.unit === 'units #/per kg'
+            ? Math.ceil(ingredient.quantityPerPerson * people)
+            : (ingredient.quantityPerPerson * people).toFixed(4),
+          unit: ingredient.unit
+        }));
+        setIngredients(calculatedIngredients);
+      };
+
+      return (
+        <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+          <h1 className="text-3xl font-bold text-center text-blue-600 mb-4">UET Lahore Mess Calculator</h1>
+          <p className="text-gray-600 text-center mb-6">
+            Select a dish and enter the number of people to get the required ingredients with units.
+          </p>
+          <p className="text-sm text-gray-500 italic mb-4">
+            Fun Fact: The most expensive dish per person is "sindhi biyaani" with a rate of 200.38!
+          </p>
+
+          {/* Dish selection */}
+          <div className="mb-4">
+            <label className="block text-gray-700 font-semibold mb-2">Select Dish:</label>
+            <select
+              value={selectedDish}
+              onChange={(e) => setSelectedDish(e.target.value)}
+              className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Object.keys(dishes).map(dish => (
+                <option key={dish} value={dish}>{dish}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Number of people input */}
+          <div className="mb-4">
+            <label className="block text-gray-700 font-semibold mb-2">Number of People:</label>
+            <input
+              type="number"
+              value={numPeople}
+              onChange={(e) => setNumPeople(e.target.value)}
+              placeholder="Enter number of people"
+              className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="1"
+            />
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <p className="text-red-500 text-sm mb-4">{error}</p>
+          )}
+
+          {/* Calculate button */}
+          <button
+            onClick={handleCalculate}
+            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition duration-200"
+          >
+            Calculate Ingredients
+          </button>
+
+          {/* Results table */}
+          {ingredients.length > 0 && (
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Required Ingredients:</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-100">
+                      <th className="border p-2 text-left text-gray-700">Ingredient</th>
+                      <th className="border p-2 text-left text-gray-700">Quantity</th>
+                      <th className="border p-2 text-left text-gray-700">Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ingredients.map((ingredient, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="border p-2">{ingredient.name}</td>
+                        <td className="border p-2">{ingredient.quantity}</td>
+                        <td className="border p-2">{ingredient.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<IngredientCalculator />);
+  </script>
+</body>
+</html>
