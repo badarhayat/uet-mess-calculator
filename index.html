@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -51,7 +12,7 @@
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
   <div id="root"></div>
   <script type="text/babel" data-type="module" data-presets="react">
-    const { useState } = React;
+    const { useState, useEffect } = React;
 
     // Data structure for dishes with rent and gas cylinder excluded
     const dishes = {
@@ -358,7 +319,7 @@
         { name: "lemon", quantityPerPerson: 0.015, unit: "units" },
         { name: "phool gobi", quantityPerPerson: 0.1020, unit: "kg" },
         { name: "gajar", quantityPerPerson: 0.1020, unit: "kg" },
-        { name: "wood", quantityPerPerson: 0.1531, unit: "units #/per kg" }
+        { name: "wood", quantityPerPerson: 0.1531, unit: "units" }
       ],
       "ichaar chicken": [
         { name: "atta", quantityPerPerson: 0.2991, unit: "kg" },
@@ -390,33 +351,101 @@
       const [numPeople, setNumPeople] = useState('');
       const [ingredients, setIngredients] = useState([]);
       const [error, setError] = useState('');
+      const [costs, setCosts] = useState({});
+      const [totalCosts, setTotalCosts] = useState({});
+      const [extraCharges, setExtraCharges] = useState('');
+      const [costPerPerson, setCostPerPerson] = useState(null);
+      const [totalCost, setTotalCost] = useState(null);
 
-      // Calculate ingredients based on input
+      // Load costs from local storage on mount
+      useEffect(() => {
+        const savedCosts = localStorage.getItem('ingredientCosts');
+        if (savedCosts) {
+          setCosts(JSON.parse(savedCosts));
+        }
+        const savedExtraCharges = localStorage.getItem('extraCharges');
+        if (savedExtraCharges) {
+          setExtraCharges(savedExtraCharges);
+        }
+      }, []);
+
+      // Save costs and extra charges to local storage whenever they change
+      useEffect(() => {
+        if (Object.keys(costs).length > 0) {
+          localStorage.setItem('ingredientCosts', JSON.stringify(costs));
+        }
+      }, [costs]);
+      useEffect(() => {
+        if (extraCharges) {
+          localStorage.setItem('extraCharges', extraCharges);
+        }
+      }, [extraCharges]);
+
+      // Handle cost input change
+      const handleCostChange = (ingredientName, value) => {
+        const newCosts = { ...costs, [ingredientName]: parseFloat(value) || 0 };
+        setCosts(newCosts);
+      };
+
+      // Handle extra charges change
+      const handleExtraChargesChange = (value) => {
+        setExtraCharges(value);
+      };
+
+      // Calculate ingredients
       const handleCalculate = () => {
         setError('');
         const people = parseInt(numPeople, 10);
         if (isNaN(people) || people <= 0) {
           setError('Please enter a valid number of people (greater than 0).');
           setIngredients([]);
+          setCostPerPerson(null);
+          setTotalCost(null);
+          setTotalCosts({});
           return;
         }
 
         const selectedIngredients = dishes[selectedDish];
         const calculatedIngredients = selectedIngredients.map(ingredient => ({
           name: ingredient.name,
-          quantity: ingredient.unit === 'packs' || ingredient.unit === 'units' || ingredient.unit === 'units #/per kg'
+          quantity: ingredient.unit === 'packs' || ingredient.unit === 'units'
             ? Math.ceil(ingredient.quantityPerPerson * people)
             : (ingredient.quantityPerPerson * people).toFixed(4),
           unit: ingredient.unit
         }));
         setIngredients(calculatedIngredients);
+        setCostPerPerson(null);
+        setTotalCost(null);
+        setTotalCosts({});
+      };
+
+      // Calculate total costs and cost per person
+      const handleRecalculateCost = () => {
+        const people = parseInt(numPeople, 10);
+        const newTotalCosts = {};
+        let overallTotalCost = 0;
+
+        ingredients.forEach(ingredient => {
+          const costPerUnit = costs[ingredient.name] || 0;
+          const quantity = parseFloat(ingredient.quantity);
+          const totalCost = costPerUnit * quantity;
+          newTotalCosts[ingredient.name] = totalCost.toFixed(2);
+          overallTotalCost += totalCost;
+        });
+
+        const extraChargesValue = parseFloat(extraCharges) || 0;
+        overallTotalCost += extraChargesValue;
+        setTotalCosts(newTotalCosts);
+        setTotalCost(overallTotalCost.toFixed(2));
+        const costPerPersonValue = overallTotalCost / people;
+        setCostPerPerson(costPerPersonValue.toFixed(2));
       };
 
       return (
-        <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+        <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
           <h1 className="text-3xl font-bold text-center text-blue-600 mb-4">UET Lahore Mess Calculator</h1>
           <p className="text-gray-600 text-center mb-6">
-            Select a dish and enter the number of people to get the required ingredients with units.
+            Calculate ingredients and costs for hostel meals.
           </p>
           <p className="text-sm text-gray-500 italic mb-4">
             Fun Fact: The most expensive dish per person is "sindhi biyaani" with a rate of 200.38!
@@ -457,7 +486,7 @@
           {/* Calculate button */}
           <button
             onClick={handleCalculate}
-            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition duration-200"
+            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition duration-200 mb-4"
           >
             Calculate Ingredients
           </button>
@@ -473,6 +502,8 @@
                       <th className="border p-2 text-left text-gray-700">Ingredient</th>
                       <th className="border p-2 text-left text-gray-700">Quantity</th>
                       <th className="border p-2 text-left text-gray-700">Unit</th>
+                      <th className="border p-2 text-left text-gray-700">Cost/Unit (PKR)</th>
+                      <th className="border p-2 text-left text-gray-700">Total Cost (PKR)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -481,11 +512,54 @@
                         <td className="border p-2">{ingredient.name}</td>
                         <td className="border p-2">{ingredient.quantity}</td>
                         <td className="border p-2">{ingredient.unit}</td>
+                        <td className="border p-2">
+                          <input
+                            type="number"
+                            value={costs[ingredient.name] || ''}
+                            onChange={(e) => handleCostChange(ingredient.name, e.target.value)}
+                            placeholder="Enter cost"
+                            className="w-full p-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="0.01"
+                          />
+                        </td>
+                        <td className="border p-2">
+                          {totalCosts[ingredient.name] || '0.00'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {/* Extra Charges Input */}
+              <div className="mt-4">
+                <label className="block text-gray-700 font-semibold mb-2">Gas+Misc+Filters (PKR):</label>
+                <input
+                  type="number"
+                  value={extraCharges}
+                  onChange={(e) => handleExtraChargesChange(e.target.value)}
+                  placeholder="Enter extra charges"
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <button
+                onClick={handleRecalculateCost}
+                className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition duration-200 mt-4"
+              >
+                Recalculate Cost
+              </button>
+              {totalCost !== null && (
+                <div className="mt-4">
+                  <h2 className="text-xl font-semibold text-gray-800">Total Cost:</h2>
+                  <p className="text-lg text-gray-700">PKR {totalCost}</p>
+                  <h2 className="text-xl font-semibold text-gray-800 mt-2">Cost Per Person:</h2>
+                  <p className="text-lg text-gray-700">PKR {costPerPerson}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
